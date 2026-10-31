@@ -2,6 +2,42 @@
 
 Проверяйте по слоям: локальный listener → TCP до VPS → REALITY/VLESS → DNS и загрузка → маршрутизация приложений. Не меняйте сразу несколько параметров: после каждого изменения повторяйте один и тот же запрос.
 
+## Ошибка 404 при загрузке установочного архива
+
+Если установка остановилась на `Downloading Xray archive` с HTTP 404, до настройки VLESS дело ещё не дошло. Ответ 404 означает отсутствие запрошенного ресурса на ответившем сервере; это не признак закрытого входящего порта 443 на VPS.
+
+31.10.2026 для прежнего `v26.10.29` повторно подтверждён 404 и через API, и по адресу архива. API сообщает стабильный `v26.10.31`; файл `Xray-linux-64.zip` этого релиза отвечает HTTP 200. Продолжить установку можно так:
+
+```bash
+bash /root/xray-install.sh install --version 26.10.31
+/usr/local/bin/xray version
+```
+
+Либо пусть официальный установщик сам определит текущую стабильную версию:
+
+```bash
+bash /root/xray-install.sh install
+```
+
+В [примечаниях к 26.10.31](https://github.com/XTLS/Xray-core/releases/tag/v26.10.31) авторы сообщают, что отозвали 26.10.29 при выпуске срочного обновления безопасности: в новом релизе по умолчанию отключён MPTCP из-за проблемы в ядре Linux. Они также рекомендуют обновить само ядро. Не используйте сохранённый архив отозванной версии для обхода этой ошибки. Актуальный список — [GitHub Releases API](https://api.github.com/repos/XTLS/Xray-core/releases/latest). Правила UFW, SSH и ключи REALITY менять не требуется.
+
+Если новая ссылка также возвращает 404 именно с вашего VPS, проверьте цепочку ответов:
+
+```bash
+curl -IL --max-time 30 \
+  https://github.com/XTLS/Xray-core/releases/download/v26.10.31/Xray-linux-64.zip
+```
+
+Обычно GitHub отвечает перенаправлением, затем сервер файлов — HTTP 200. Если диагностика показывает другой результат, сохраните коды и заголовки ответа, сведения о HTTP-прокси и результате запроса API. Не отключайте проверку HTTPS (`-k`) как способ исправления 404.
+
+## Предупреждение REALITY: Choosing ... as the target
+
+Если после предупреждения написано `Configuration OK.`, конфигурация принята. Это не сообщение о состоявшейся блокировке и не проверка доступности target. В версии 26.10.31 условие применяется к строкам `serverNames`: суффиксы `.ru`, `.ir`, `.cn` или подстроки `apple`, `icloud`, `microsoft` после приведения к нижнему регистру. [Исходный код проверки](https://github.com/XTLS/Xray-core/blob/v26.10.31/infra/conf/transport_security.go#L157-L163).
+
+`rutube.ru` вызывает предупреждение из-за окончания `.ru`, а не из-за отдельного анализа RuTube. GFW в тексте означает китайскую систему фильтрации; текущую доступность из российской сети проверяйте реальным подключением.
+
+Для начального сравнения можно проверить `www.kernel.org`, `www.debian.org`, `www.mozilla.org` командами TLS из раздела 4. Выбирайте доступный с VPS узел с TLS 1.3, HTTP/2, подходящим сертификатом и небольшими задержками. Согласованно измените серверные `target`/`serverNames` и клиентский SNI, проверьте конфиг и перезапустите службу. Ключи и UUID для замены target менять не требуется.
+
 ## 1. Не работает даже localhost-прокси
 
 Если curl сообщает `Failed to connect to 127.0.0.1`, сначала проверьте, запущено ли ядро и какой порт реально указан в настройках.
@@ -105,7 +141,7 @@ openssl s_client -connect "$TARGET_SERVER_NAME:443" \
 Windows:
 
 ```powershell
-curl.exe --max-time 60 --location --fail --range 0-1048575 --proxy socks5h://127.0.0.1:10808 --output NUL --write-out "HTTP=%{http_code} bytes=%{size_download} speed=%{speed_download}\n" https://github.com/XTLS/Xray-core/releases/download/v26.10.29/Xray-linux-64.zip
+curl.exe --max-time 60 --location --fail --range 0-1048575 --proxy socks5h://127.0.0.1:10808 --output NUL --write-out "HTTP=%{http_code} bytes=%{size_download} speed=%{speed_download}\n" https://github.com/XTLS/Xray-core/releases/download/v26.10.31/Xray-linux-64.zip
 ```
 
 Linux:
@@ -114,7 +150,7 @@ Linux:
 curl --max-time 60 --location --fail --range 0-1048575 \
   --proxy socks5h://127.0.0.1:10808 --output /dev/null \
   --write-out 'HTTP=%{http_code} bytes=%{size_download} speed=%{speed_download}\n' \
-  https://github.com/XTLS/Xray-core/releases/download/v26.10.29/Xray-linux-64.zip
+  https://github.com/XTLS/Xray-core/releases/download/v26.10.31/Xray-linux-64.zip
 ```
 
 Если сервер поддерживает диапазон, ожидается HTTP 206 и 1048576 байт; HTTP 200 с полным файлом также показывает передачу данных. Проверяйте не только код, но и объём/завершение без timeout.
